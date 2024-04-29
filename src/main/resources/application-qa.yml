@@ -1,0 +1,44 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+  application:
+    name: @project.name@
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKER_ENDPOINT}
+    consumer:
+      group-id: satusehat-task-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        "[spring.json.trusted.packages]": "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.LongSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        acks: all
+        retries: 10
+        "[retry.backoff.ms]": 1000
+        "[timeout.ms]": 30000
+    security:
+      protocol: ${KAFKA_SECURITY_PROTOCOL}
+    ssl:
+      trust-store-location: file:${KAFKA_TRUST_STORE_LOCATION}
+      trust-store-password: ${KAFKA_TRUST_STORE_PASSWORD}
+      key-store-location: file:${KAFKA_KEY_STORE_LOCATION}
+      key-store-password: ${KAFKA_KEY_STORE_PASSWORD}
+
+server:
+  shutdown: graceful
+  servlet:
+    context-path: "/satusehatfhir"
+  port: 8000
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT}
+  tracing:
+    enabled: true
+    sampling:
+      probability: 0.8

@@ -1,0 +1,80 @@
+clone:
+  depth: 1
+
+definitions:
+  steps:
+  - step: &build-job
+      image: maven:3.9.6-eclipse-temurin-21-jammy
+      name: build
+      services:
+        - docker
+      caches:
+        - maven
+      script:
+          #build maven
+          - mvn package '-Dmaven.test.skip=true'
+          - mkdir -p $HOME/.config/gcloud
+          #google creds
+          - echo $GCLOUD_API_KEYFILE | base64 -d > $HOME/.config/gcloud/application_default_credentials.json
+          - |
+            curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v2.1.8/docker-credential-gcr_linux_386-2.1.8.tar.gz" \
+            | tar xz docker-credential-gcr \
+            && chmod +x docker-credential-gcr && mv docker-credential-gcr /usr/bin/
+          - docker-credential-gcr configure-docker --registries=asia-southeast2-docker.pkg.dev
+          - docker build -t asia-southeast2-docker.pkg.dev/${GCLOUD_PROJECT}/mtmh-image-repo/${PACKAGE_NAME}:${BITBUCKET_TAG} .
+          # push image
+          - docker push asia-southeast2-docker.pkg.dev/${GCLOUD_PROJECT}/mtmh-image-repo/${PACKAGE_NAME}:${BITBUCKET_TAG}
+  - step: &deploy-dev-job
+      name: deploy-dev-job
+      trigger: manual
+      # deployment: dev
+      clone:
+        enabled: false
+      image:
+        name: alpine:latest
+      script:
+        - apk add git
+        - apk add kustomize
+        - cd /home
+        - git clone https://x-token-auth:$BITBUCKET_TOKEN@bitbucket.org/mtmh/kubernetes-config.git
+        - git config --global user.email 712020:f6c67926-45aa-416a-8cfa-128100ed6ef4@bots.bitbucket.org
+        - cd kubernetes-config/kustomize
+        - cd ${NAMESPACE}/${PACKAGE_NAME}/overlays/qa && kustomize edit set image asia-southeast2-docker.pkg.dev/$GCLOUD_PROJECT/mtmh-image-repo/${PACKAGE_NAME}="asia-southeast2-docker.pkg.dev/$GCLOUD_PROJECT/mtmh-image-repo/${PACKAGE_NAME}:${BITBUCKET_TAG}"
+        - git add -A
+        - git commit -m "Gitops update ${PACKAGE_NAME}:${BITBUCKET_TAG} with tag ${BITBUCKET_TAG}"
+        - git push
+      artifacts:
+        download: false
+  - step: &deploy-prd-job
+      name: deploy-prd-job
+      trigger: manual
+      deployment: production
+      clone:
+        enabled: false
+      image:
+        name: alpine/git:latest
+      script:
+        - ssh-keyscan -H git-codecommit.ap-southeast-1.amazonaws.com > /root/.ssh/known_hosts
+        - apk add kustomize
+        - echo $AWS_GITOPS | base64 -d > ~/.ssh/id_rsa
+        - chmod 400 ~/.ssh/id_rsa
+        - git clone ssh://APKASJSP24Q6LD3VSJMZ@git-codecommit.ap-southeast-1.amazonaws.com/v1/repos/eks-config
+        - git config --global user.email "bitbucket-gitops@mthis-296015.iam.gserviceaccount.com"
+        - git config --global user.name "bitbucket"
+        - cd $BITBUCKET_CLONE_DIR/eks-config/kustomize/${NAMESPACE}/${YAML_FILE}/overlays/prd
+        - kustomize edit set image asia-southeast2-docker.pkg.dev/mthis-296015/mtmh-image-repo/${PACKAGE_NAME}="asia-southeast2-docker.pkg.dev/mthis-296015/mtmh-image-repo/${PACKAGE_NAME}:${BITBUCKET_TAG}"
+        - git add -A
+        - git commit -m "Gitops update ${PACKAGE_NAME}:${BITBUCKET_TAG}"
+        - git push
+      artifacts:
+        download: false
+
+
+pipelines:
+  tags:
+    'QA-*':
+      - step: *build-job
+      - step: *deploy-dev-job
+    'PRD-*':
+      - step: *build-job
+      - step: *deploy-prd-job

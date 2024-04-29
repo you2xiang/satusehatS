@@ -1,0 +1,29 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+  application:
+    name: satusehatfhirservice
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKER_ENDPOINT:host.docker.internal:9092}
+    consumer:
+      group-id: satusehatfhir-task-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        "[spring.json.trusted.packages]": "*"
+
+server:
+  shutdown: graceful
+  servlet:
+    context-path: "/satusehatfhir"
+  port: 8000
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT}
+  tracing:
+    enabled: false
+    sampling:
+      probability: 1
