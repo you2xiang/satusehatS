@@ -9,7 +9,7 @@
         <version>3.2.1</version>
         <relativePath /> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.rsmurniteguh.fhir</groupId>
+    <groupId>com.klinik.fhir</groupId>
     <artifactId>satusehatfhir-service</artifactId>
     <version>0.3.5</version>
     <name>satusehatfhir-service</name>
